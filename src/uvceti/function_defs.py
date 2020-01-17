@@ -287,7 +287,10 @@ def apcorrect_cps(lc, band, aper=gt.aper2deg(7)):
                           gt.apcorrect1(aper, band), band))
 
 def find_flare_ranges(lc, sigma=3, quiescence=None):
-    """ Identify the start and stop indexes of a flare event. """
+    """ Identify the start and stop indexes of a flare event. The range will continue backwards and forwards
+        in time from the peak until either the end of the visit, or a flux that is within 1-sigma of the INFF
+        is found.
+    """
     tranges = [[min(lc['t0']), max(lc['t1'])]]
     if not quiescence:
         q, q_err = get_inff(lc)
@@ -295,50 +298,61 @@ def find_flare_ranges(lc, sigma=3, quiescence=None):
         q, q_err = quiescence
     flare_ranges = []
     for trange in tranges:
+        # The range excludes those points that don't have good coverage in the time bin, based on 'expt'.
+        # NOTE: This assumes a 30-second bin size!!
         ix = np.where((np.array(lc['t0'].values) >= trange[0]) &
                       (np.array(lc['t0'].values) <= trange[1]) &
+                      (np.array(lc['expt'].values) >= 20.0) &
                       (np.array(lc['cps_apcorrected'].values) -
                        sigma*np.array(lc['cps_err'].values) >= q))[0]
+        # Save the points that are 3-sigma above the INFF to return.
+        fluxes_3sig = ix
         if not len(ix):
             # No flares were found
             continue
         # This chunk extends flares until they are indistinguishable from
-        # INFF.
+        # INFF, which we define has having two sequential fluxes that are less than
+        # 1-sigma above the INFF.
         temp_ix = []
         for ix_range in find_ix_ranges(ix):
-            # Going backwards
-            while ((lc.iloc[ix_range[0]]['cps_apcorrected'] >= q) and
-                   (ix_range[0] > 0)):
+            # Set extra_part = 0.0 for the original version from Chase that did not
+            # take into account errors, otherwise this is set to require fluxes be
+            # greater than 1-sigma from the INFF before it stops the range extension.
+            # Going backwards.
+            n_in_a_row = 0
+            extra_part = lc.iloc[ix_range[0]]['cps_err']
+            while (lc.iloc[ix_range[0]]['cps_apcorrected']-extra_part >= q and ix_range[0] > 0 or (n_in_a_row < 1 and ix_range[0] > 0)):
+                extra_part = lc.iloc[ix_range[0]]['cps_err']
+                if (lc.iloc[ix_range[0]]['cps_apcorrected']-extra_part < q):
+                    n_in_a_row += 1
+                else:
+                    n_in_a_row = 0
                 if (lc.iloc[ix_range[0]]['t0'] - lc.iloc[ix_range[0]-1]['t0'] >
                         1000):
                     break
                 ix_range = [ix_range[0] - 1] + ix_range
-            # Going forwards
-            while ((lc.iloc[ix_range[-1]]['cps_apcorrected'] >= q) and
-                   (ix_range[-1] != len(lc)-1)):
+            # Going forwards.
+            n_in_a_row = 0
+            extra_part = lc.iloc[ix_range[-1]]['cps_err']
+            while (lc.iloc[ix_range[-1]]['cps_apcorrected']-extra_part >= q and ix_range[-1] != len(lc)-1 or (n_in_a_row < 1 and ix_range[-1] != len(lc)-1)):
+                extra_part = lc.iloc[ix_range[-1]]['cps_err']
+                if (lc.iloc[ix_range[-1]]['cps_apcorrected']-extra_part < q):
+                    n_in_a_row += 1
+                else:
+                    n_in_a_row = 0
                 if (lc.iloc[ix_range[-1]+1]['t0']-lc.iloc[ix_range[-1]]['t0'] >
                         1000):
                     break
                 ix_range = ix_range + [ix_range[-1] + 1]
             temp_ix += ix_range
         ix = np.unique(temp_ix)
-        # This chunk connects gaps of a single bin width
-        temp_ix = []
-        for ix_range in find_ix_ranges(ix):
-            if ix_range[-1]+2 in ix:
-                ix_range += [ix_range[-1]+1]
-            if ix_range[0]-2 in ix:
-                ix_range += [ix_range[0]-1]
-            temp_ix += ix_range
-        ix = np.unique(temp_ix)
-        ix = ix[np.where(ix >= 0)]
         flare_ranges += find_ix_ranges(list(np.array(ix).flatten()))
-    return flare_ranges
+    return (flare_ranges, fluxes_3sig)
 
 def refine_flare_ranges(lc, makeplot=True):
     """ Identify the start and stop indexes of a flare event after
     refining the INFF by masking out the initial flare detection indexes. """
-    flare_ranges = find_flare_ranges(lc, sigma=3)
+    flare_ranges, _ = find_flare_ranges(lc, sigma=3)
     flare_ix = list(itertools.chain.from_iterable(flare_ranges))
     quiescience_mask = [False if i in flare_ix else True for i in
                         np.arange(len(lc['t0']))]
@@ -347,16 +361,21 @@ def refine_flare_ranges(lc, makeplot=True):
                   lc['expt'][quiescience_mask].sum())
     quiescence_err = (np.sqrt(lc['counts'][quiescience_mask].sum()) /
                       lc['expt'][quiescience_mask].sum())
-    flare_ranges = find_flare_ranges(lc, quiescence=(quiescence,
+    flare_ranges, flare_3sigs = find_flare_ranges(lc, quiescence=(quiescence,
                                                      quiescence_err), sigma=3)
     flare_ix = list(itertools.chain.from_iterable(flare_ranges))
+    not_flare_ix = list(set([x for x in range(len(lc['t0']))]) - set(flare_ix))
     if makeplot:
         plt.figure(figsize=(15, 3))
-        plt.errorbar(lc['t0'], lc['cps_apcorrected'], yerr=3*lc['cps_err'],
-                     fmt='kx-')
-        plt.plot(lc['t0'].iloc[flare_ix], lc['cps_apcorrected'].iloc[flare_ix],
-                 'bo')
-        plt.hlines(quiescence, lc['t0'].min(), lc['t0'].max())
+        plt.plot(lc['t0']-min(lc['t0']), lc['cps_apcorrected'], '-k')
+        plt.errorbar(lc['t0'].iloc[not_flare_ix]-min(lc['t0']), lc['cps_apcorrected'].iloc[not_flare_ix],
+                     yerr=1.*lc['cps_err'].iloc[not_flare_ix], fmt='ko')
+        plt.errorbar(lc['t0'].iloc[flare_ix]-min(lc['t0']), lc['cps_apcorrected'].iloc[flare_ix],
+                     yerr=1.*lc['cps_err'].iloc[flare_ix], fmt='rs')
+        plt.plot(lc['t0'].iloc[flare_3sigs]-min(lc['t0']), lc['cps_apcorrected'].iloc[flare_3sigs],
+                    'ro', fillstyle='none', markersize=20)
+        plt.hlines(quiescence, lc['t0'].min()-min(lc['t0']), lc['t0'].max()-min(lc['t0']))
+        plt.show()
     return flare_ranges, quiescence, quiescence_err
 
 def find_ix_ranges(ix, buffer=False):
