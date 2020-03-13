@@ -156,11 +156,12 @@ def define_wcs(events, imsz=[3200, 3200], skypos=None,
 
 def make_lightcurve(photon_file, band, stepsz=30., skypos=(24.76279, -17.94948),
                     aper=gt.aper2deg(7), fixed_t0=False,
-                    makefile=False, quiet=False, filetag=''):
+                    makefile=False, quiet=False, filetag='', lc_filename=None):
     """ Generate a light curve of a specific target. """
-    lc_filename = photon_file.replace('.csv',
-                                      '-{stepsz}s{filetag}.csv'.format(
-                                          stepsz=int(stepsz), filetag=filetag))
+    if lc_filename is None:
+        lc_filename = photon_file.replace('.csv',
+                                          '-{stepsz}s{filetag}.csv'.format(
+                                              stepsz=int(stepsz), filetag=filetag))
     if not quiet:
         print_inline('Generating {fn}'.format(fn=lc_filename))
     if os.path.exists(lc_filename) and not makefile:
@@ -349,10 +350,11 @@ def find_flare_ranges(lc, sigma=3, quiescence=None):
         flare_ranges += find_ix_ranges(list(np.array(ix).flatten()))
     return (flare_ranges, fluxes_3sig)
 
-def refine_flare_ranges(lc, makeplot=True):
+def refine_flare_ranges(lc, makeplot=True, flare_ranges=None):
     """ Identify the start and stop indexes of a flare event after
     refining the INFF by masking out the initial flare detection indexes. """
-    flare_ranges, _ = find_flare_ranges(lc, sigma=3)
+    if not flare_ranges:
+        flare_ranges, _ = find_flare_ranges(lc, sigma=3)
     flare_ix = list(itertools.chain.from_iterable(flare_ranges))
     quiescience_mask = [False if i in flare_ix else True for i in
                         np.arange(len(lc['t0']))]
@@ -411,8 +413,6 @@ def calculate_flare_energy(lc, frange, distance, binsize=30, band='NUV',
                            effective_widths={'NUV':729.94, 'FUV':255.45},
                            quiescence=None):
     """ Calculates the energy of a flare in erg. """
-    # TODO: interpolate over gaps
-    # TODO: model the decay phase for right-censored data
     if not quiescence:
         q, _ = get_inff(lc)
     else:
@@ -420,19 +420,20 @@ def calculate_flare_energy(lc, frange, distance, binsize=30, band='NUV',
 
     # Convert from parsecs to cm
     distance_cm = distance * 3.086e+18
-    # NOTE: This does not interpolate over small gaps.
     if 'cps_apcorrected' in lc.keys():
+        # Converting from counts / sec to flux units.
         flare_flux = (np.array(gt.counts2flux(
             np.array(lc.iloc[frange]['cps_apcorrected']), band)) -
                       gt.counts2flux(q, band))
     else:
-        flare_flux = (np.array(gt.counts2flux(
-            np.array(lc.iloc[frange]['cps_apcorrected']), band)) -
-                      gt.counts2flux(q, band))
+        # Really need to have aperture-corrected counts/sec.
+        raise ValueError("Need aperture-corrected cps fluxes to continue.")
+    # Zero any flux values where the flux is below the INFF so that we don't subtract from the total flux!
     flare_flux = np.array([0 if f < 0 else f for f in flare_flux])
     flare_flux_err = gt.counts2flux(np.array(lc.iloc[frange]['cps_err']), band)
     tbins = (np.array(lc.iloc[frange]['t1'].values) -
              np.array(lc.iloc[frange]['t0'].values))
+    # Caluclate the area under the curve.
     integrated_flux = (binsize*flare_flux).sum()
     """
     GALEX effective widths from
@@ -441,6 +442,7 @@ def calculate_flare_energy(lc, frange, distance, binsize=30, band='NUV',
     http://svo2.cab.inta-csic.es/svo/theory/fps3/index.php?id=GALEX/GALEX.FUV
     width = 255.45 A
     """
+    # Convert integrated flux to a fluence using the GALEX effective widths.
     fluence = integrated_flux*effective_widths[band]
     fluence_err = (np.sqrt(((gt.counts2flux(lc.iloc[frange]['cps_err'], band) *
                              binsize)**2).sum())*effective_widths[band])
