@@ -183,7 +183,9 @@ def make_lightcurve(photon_file, band, stepsz=30., skypos=(24.76279, -17.94948),
         trange[0] = fixed_t0
     expt = compute_exptime_array(np.array(events['t'].values), band, trange,
                                  stepsz, np.array(events['flags'].values))
-    counts, tbins = [], []
+    counts, tbins, detrads  = [], [], []
+    col, row = np.array(events['col']), np.array(events['row'])
+    detrad = np.sqrt((col-400)**2+(row-400)**2)
     for t0 in np.arange(trange[0], trange[1], stepsz):
         tix = np.where((np.array(events['t'])[ix] >= t0) &
                        (np.array(events['t']) < t0 + stepsz)[ix] &
@@ -193,13 +195,15 @@ def make_lightcurve(photon_file, band, stepsz=30., skypos=(24.76279, -17.94948),
             counts += [0.]
             continue
         counts += [np.array(events['response'])[ix][tix].sum()]
+        detrads += [detrad[ix][tix].mean()]
     cps = np.array(counts) / np.array(expt)
     cps_err = np.sqrt(counts) / np.array(expt)
     lc = pd.DataFrame({'t0':tbins, 't1':list(np.array(tbins) + stepsz),
                        'cps':cps, 'cps_err':cps_err,
                        'flux':gt.counts2flux(cps, band),
                        'flux_err':gt.counts2flux(cps_err, band),
-                       'counts':counts, 'expt':expt})
+                       'counts':counts, 'expt':expt,
+                       'detrad':detrads})
     lc['cps_apcorrected'] = apcorrect_cps(lc, band, aper=aper)
     lc['flux_apcorrected'] = gt.counts2flux(lc['cps_apcorrected'], band)
     lc.to_csv(lc_filename)
