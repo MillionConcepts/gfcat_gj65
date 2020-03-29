@@ -164,7 +164,7 @@ def make_lightcurve(photon_file, band, stepsz=30., skypos=(24.76279, -17.94948),
                                               stepsz=int(stepsz), filetag=filetag))
     if not quiet:
         print_inline('Generating {fn}'.format(fn=lc_filename))
-    if os.path.exists(lc_filename) and not makefile:
+    if os.path.exists(lc_filename) and makefile:
         if not quiet:
             print_inline('    Pre-exists...')
         return pd.read_csv(lc_filename)
