@@ -191,11 +191,11 @@ def make_lightcurve(photon_file, band, stepsz=30., skypos=(24.76279, -17.94948),
                        (np.array(events['t']) < t0 + stepsz)[ix] &
                        (np.array(events['flags'], dtype='int16')[ix] == 0))
         tbins += [t0]
+        detrads += [detrad[ix][tix].mean()]
         if len(tix[0]) == 0:
             counts += [0.]
-            continue
-        counts += [np.array(events['response'])[ix][tix].sum()]
-        detrads += [detrad[ix][tix].mean()]
+        else:
+            counts += [np.array(events['response'])[ix][tix].sum()]
     cps = np.array(counts) / np.array(expt)
     cps_err = np.sqrt(counts) / np.array(expt)
     lc = pd.DataFrame({'t0':tbins, 't1':list(np.array(tbins) + stepsz),
