@@ -162,12 +162,14 @@ def make_lightcurve(photon_file, band, stepsz=30., skypos=(24.76279, -17.94948),
         lc_filename = photon_file.replace('.csv',
                                           '-{stepsz}s{filetag}.csv'.format(
                                               stepsz=int(stepsz), filetag=filetag))
-    if not quiet:
-        print_inline('Generating {fn}'.format(fn=lc_filename))
-    if os.path.exists(lc_filename) and makefile:
+    if os.path.exists(lc_filename) and not makefile:
         if not quiet:
-            print_inline('    Pre-exists...')
+            print_inline('    Pre-exists, reading in file...')
         return pd.read_csv(lc_filename)
+    else:
+        if not quiet:
+            import pdb; pdb.set_trace()
+            print_inline('Generating {fn}'.format(fn=lc_filename))
     events = calibrate_photons(photon_file, band)
     skypos_recentered = recenter(events, skypos=skypos)
     if not quiet:
