@@ -101,36 +101,36 @@ def calibrate_photons(photon_file, band, overwrite=False):
                                                np.array(data['eta']), band)
     # Use only data that is on the detector.
     ix = np.where((col > 0) & (col < 800) & (row > 0) & (row < 800))
-    events['t'] = pd.Series(np.array(data.iloc[ix]['t'])/1000.)
-    events['ra'] = pd.Series(np.array(data.iloc[ix]['ra']))
-    events['dec'] = pd.Series(np.array(data.iloc[ix]['dec']))
-    events['flags'] = pd.Series(np.array(data.iloc[ix]['flags']))
-    events['col'] = pd.Series(col[ix])
-    events['row'] = pd.Series(row[ix])
+    events['t'] = pd.Series((np.array(data.iloc[ix]['t'])/1000.).byteswap().newbyteorder())
+    events['ra'] = pd.Series((np.array(data.iloc[ix]['ra'])).byteswap().newbyteorder())
+    events['dec'] = pd.Series((np.array(data.iloc[ix]['dec'])).byteswap().newbyteorder())
+    events['flags'] = pd.Series((np.array(data.iloc[ix]['flags'])).byteswap().newbyteorder())
+    events['col'] = pd.Series((col[ix]).byteswap().newbyteorder())
+    events['row'] = pd.Series((row[ix]).byteswap().newbyteorder())
     flat = flat[np.array(events['col'], dtype='int16'),
                 np.array(events['row'], dtype='int16')]
-    events['flat'] = pd.Series(flat)
+    events['flat'] = pd.Series((flat).byteswap().newbyteorder())
     scale = gt.compute_flat_scale(
         np.array(data.iloc[ix]['t'])/1000., band)
-    events['scale'] = pd.Series(scale)
+    events['scale'] = pd.Series((scale).byteswap().newbyteorder())
     response = np.array(events['flat'])*np.array(events['scale'])
-    events['response'] = pd.Series(response)
+    events['response'] = pd.Series((response).byteswap().newbyteorder())
 
     # Define the hotspot mask
     mask, maskinfo = gPhoton.cal.mask(band)
 
     events['mask'] = pd.Series(
-        (mask[np.array(col[ix], dtype='int64'),
-              np.array(row[ix], dtype='int64')] == 0))
+        ((mask[np.array(col[ix], dtype='int64'),
+              np.array(row[ix], dtype='int64')] == 0)).byteswap().newbyteorder())
 
     # Add the remaining photon list parameters back in for completeness.
-    events['x'] = pd.Series(np.array(data.iloc[ix]['x']))
-    events['y'] = pd.Series(np.array(data.iloc[ix]['y']))
-    events['xa'] = pd.Series(np.array(data.iloc[ix]['xa']))
-    events['ya'] = pd.Series(np.array(data.iloc[ix]['ya']))
-    events['q'] = pd.Series(np.array(data.iloc[ix]['q']))
-    events['xi'] = pd.Series(np.array(data.iloc[ix]['xi']))
-    events['eta'] = pd.Series(np.array(data.iloc[ix]['eta']))
+    events['x'] = pd.Series((np.array(data.iloc[ix]['x'])).byteswap().newbyteorder())
+    events['y'] = pd.Series((np.array(data.iloc[ix]['y'])).byteswap().newbyteorder())
+    events['xa'] = pd.Series((np.array(data.iloc[ix]['xa'])).byteswap().newbyteorder())
+    events['ya'] = pd.Series((np.array(data.iloc[ix]['ya'])).byteswap().newbyteorder())
+    events['q'] = pd.Series((np.array(data.iloc[ix]['q'])).byteswap().newbyteorder())
+    events['xi'] = pd.Series((np.array(data.iloc[ix]['xi'])).byteswap().newbyteorder())
+    events['eta'] = pd.Series((np.array(data.iloc[ix]['eta'])).byteswap().newbyteorder())
 
     print('Writing {xf}'.format(xf=xfilename))
     events.to_csv(xfilename, index=None)
@@ -168,7 +168,6 @@ def make_lightcurve(photon_file, band, stepsz=30., skypos=(24.76279, -17.94948),
         return pd.read_csv(lc_filename)
     else:
         if not quiet:
-            import pdb; pdb.set_trace()
             print_inline('Generating {fn}'.format(fn=lc_filename))
     events = calibrate_photons(photon_file, band)
     skypos_recentered = recenter(events, skypos=skypos)
