@@ -5,7 +5,7 @@ Analysis of GJ 65 (aka "UV Ceti" and "BL Ceti") as part of the GALEX Flare Catal
 This repository contains Python notebooks and some data files needed to reproduce the data, plots, tables, and some calculations in Fleming et al. 2020 "New Time-Resolved Flares In The GJ 65 System With gPhoton".
 
 ### Notebooks
-There are six Python notebooks included in the "src/uvceti/" folder, and they are numbered based on the most natural order of running them.  The regular Python file "function_defs.py" contains the functions used in the notebooks, and are imported at the top of each one as needed.  The other .txt files are filter transmissions from the SVO Filter Service, which are read in by the notebooks (especially "00-calculate_pbol.ipynb").
+There are six Python notebooks included in the [src/uvceti/](src/uvceti/) folder, and they are numbered based on the most natural order of running them.  The regular Python file [src/uvceti/function_defs.py](src/uvceti/function_defs.py) contains the functions used in the notebooks, and are imported at the top of each one as needed.  The other .txt files are filter transmissions from the SVO Filter Service, which are read in by the notebooks (especially the one that estimates bolometric flare flux contributions for different bands).
 
   - [00-calculate_pbol.ipynb](src/uvceti/00-calculate_pbol.ipynb) = Estimates the bolometric contribution of GALEX and shows that other bolometric contributions for flares in the bandpasses used in the FFD comparison (Kepler, TESS, Evryscope, Johnson U band) are all within an order of magnitude of each other.
   
