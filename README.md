@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/258297519.svg)](https://zenodo.org/badge/latestdoi/258297519)
+
 # gfcat_gj65
 Analysis of GJ 65 (aka "UV Ceti" and "BL Ceti") as part of the GALEX Flare Catalog (GFcat) project.  Supported by NASA Grant 80NSSC18K0084.
 
@@ -26,5 +28,3 @@ Generating our data products is possible with the software in this repository, b
 
 ### Special gPhoton Software Branch.
 [src/uvceti/gPhoton/](src/uvceti/gPhoton/) = Contains a copy of the gPhoton software (a special branch called '1.28.9_nomask') used to generate the products for the paper.  This version reprocesses data near hotspot masks to get the maximum amount of usable GALEX data for the GJ 65 system.  For those who want to re-generate everything from scratch, starting from the raw photon events, you'll need to use this version of gPhoton, and it is generally easiest to run the notebooks from the same directory level as the gPhoton software folder in this repository (or make sure your Python path is pointing to this specific version of gPhoton).
-
-[![DOI](https://zenodo.org/badge/258297519.svg)](https://zenodo.org/badge/latestdoi/258297519)
