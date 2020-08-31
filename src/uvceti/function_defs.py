@@ -18,6 +18,7 @@ import gPhoton
 from gPhoton import galextools as gt
 from gPhoton.gphoton_utils import read_lc
 from gPhoton.MCUtils import print_inline
+from scipy.stats import anderson
 
 def listdir_contains(directory, contains_str):
     """This function returns a sorted list of files that match the given
@@ -404,15 +405,25 @@ def find_ix_ranges(ix, buffer=False):
             foo += [np.sort(bar).tolist()]
     return foo
 
-def get_inff(lc, clipsigma=3, quiet=True, band='NUV',
-             binsize=30.):
-    """ Calculates the Instantaneous Non-Flare Flux values. """
-    sclip = sigma_clip(np.array(lc['cps_apcorrected']), sigma=clipsigma)
-    inff = np.ma.median(sclip)
-    inff_err = np.sqrt(inff*len(sclip)*binsize)/(len(sclip)*binsize)
-    if inff and not quiet:
-        print('Quiescent at {m} AB mag.'.format(m=gt.counts2mag(inff, band)))
-    return inff, inff_err
+#def get_inff(lc, clipsigma=3, quiet=True, band='NUV',
+#             binsize=30.):
+#    """ Calculates the Instantaneous Non-Flare Flux values. """
+#    sclip = sigma_clip(np.array(lc['cps_apcorrected']), sigma=clipsigma)
+#    inff = np.ma.median(sclip)
+#    inff_err = np.sqrt(inff*len(sclip)*binsize)/(len(sclip)*binsize)
+#    if inff and not quiet:
+#        print('Quiescent at {m} AB mag.'.format(m=gt.counts2mag(inff, band)))
+#    return inff, inff_err
+
+def get_inff(lc, clipsigma=3, binsize=30, quiet=True, band='NUV'):
+    if anderson(lc['cps']).statistic<max(anderson(lc['cps']).critical_values):
+        return np.mean(lc['cps']), np.std(lc['cps'])
+    sclip = sigma_clip(lc['cps'].values,sigma_lower=3,sigma_upper=1)
+    quiescence = np.ma.median(sclip)
+    quiescence_err = np.sqrt(quiescence*len(sclip)*binsize)/(len(sclip)*binsize)
+    if quiescence and not quiet:
+        print('Quiescent at {m} AB Mag.'.format(m=counts2mag(quiescence,band)))
+    return quiescence, quiescence_err
 
 def calculate_flare_energy(lc, frange, distance, binsize=30, band='NUV',
                            effective_widths={'NUV':729.94, 'FUV':255.45},
