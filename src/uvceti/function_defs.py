@@ -355,11 +355,11 @@ def find_flare_ranges(lc, sigma=3, quiescence=None):
         flare_ranges += find_ix_ranges(list(np.array(ix).flatten()))
     return (flare_ranges, fluxes_3sig)
 
-def refine_flare_ranges(lc, makeplot=True, flare_ranges=None):
+def refine_flare_ranges(lc, sigma=3., makeplot=True, flare_ranges=None):
     """ Identify the start and stop indexes of a flare event after
     refining the INFF by masking out the initial flare detection indexes. """
     if not flare_ranges:
-        flare_ranges, _ = find_flare_ranges(lc, sigma=3)
+        flare_ranges, _ = find_flare_ranges(lc, sigma=sigma)
     flare_ix = list(itertools.chain.from_iterable(flare_ranges))
     quiescience_mask = [False if i in flare_ix else True for i in
                         np.arange(len(lc['t0']))]
@@ -368,20 +368,26 @@ def refine_flare_ranges(lc, makeplot=True, flare_ranges=None):
                   lc['expt'][quiescience_mask].sum())
     quiescence_err = (np.sqrt(lc['counts'][quiescience_mask].sum()) /
                       lc['expt'][quiescience_mask].sum())
-    flare_ranges, flare_3sigs = find_flare_ranges(lc, quiescence=(quiescence,
-                                                     quiescence_err), sigma=3)
+    flare_ranges, flare_3sigs = find_flare_ranges(lc,
+                                                  quiescence=(quiescence,
+                                                              quiescence_err),
+                                                  sigma=sigma)
     flare_ix = list(itertools.chain.from_iterable(flare_ranges))
     not_flare_ix = list(set([x for x in range(len(lc['t0']))]) - set(flare_ix))
     if makeplot:
         plt.figure(figsize=(15, 3))
         plt.plot(lc['t0']-min(lc['t0']), lc['cps_apcorrected'], '-k')
-        plt.errorbar(lc['t0'].iloc[not_flare_ix]-min(lc['t0']), lc['cps_apcorrected'].iloc[not_flare_ix],
+        plt.errorbar(lc['t0'].iloc[not_flare_ix]-min(lc['t0']),
+                     lc['cps_apcorrected'].iloc[not_flare_ix],
                      yerr=1.*lc['cps_err'].iloc[not_flare_ix], fmt='ko')
-        plt.errorbar(lc['t0'].iloc[flare_ix]-min(lc['t0']), lc['cps_apcorrected'].iloc[flare_ix],
+        plt.errorbar(lc['t0'].iloc[flare_ix]-min(lc['t0']),
+                     lc['cps_apcorrected'].iloc[flare_ix],
                      yerr=1.*lc['cps_err'].iloc[flare_ix], fmt='rs')
-        plt.plot(lc['t0'].iloc[flare_3sigs]-min(lc['t0']), lc['cps_apcorrected'].iloc[flare_3sigs],
+        plt.plot(lc['t0'].iloc[flare_3sigs]-min(lc['t0']),
+                 lc['cps_apcorrected'].iloc[flare_3sigs],
                     'ro', fillstyle='none', markersize=20)
-        plt.hlines(quiescence, lc['t0'].min()-min(lc['t0']), lc['t0'].max()-min(lc['t0']))
+        plt.hlines(quiescence, lc['t0'].min()-min(lc['t0']),
+                   lc['t0'].max()-min(lc['t0']))
         plt.show()
     return flare_ranges, quiescence, quiescence_err
 
