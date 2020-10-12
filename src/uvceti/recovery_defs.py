@@ -154,7 +154,7 @@ def inject_and_recover(n=1000, omit_incompletes=True,
         printed = False
         if not len(output['energy_true']) % 10000 and not printed:
             print('Injecting: {x}% done...'.format(
-                x=float(len(output['energy_true']))/float(n)))
+                x=float(len(output['energy_true']))/float(n)*100.))
             # Turn off counter in cases where the injected flare is rejected
             # for being truncated, so you don't get the same status update
             # printed multiple times.
@@ -178,8 +178,6 @@ def inject_and_recover(n=1000, omit_incompletes=True,
         q, q_err = get_inff(lc)
 
         # 'n_above_sigma' = minimum consecutive points required for detection
-        #fr = find_flare_ranges(lc, sigma=detection_threshold,
-        #                       n_above_sigma=2)
         fr, quiescence, quiescence_err = refine_flare_ranges(
             lc, sigma=detection_threshold, makeplot=False)
 
@@ -210,6 +208,131 @@ def inject_and_recover(n=1000, omit_incompletes=True,
                 'energy_measured_w_q_err':energy_w_q[1],
                 'q':q, 'q_err':q_err,
                 'q_true':quiescent_mag}),
+                                   ignore_index=True)
+            # Update counter again.
+            printed = False
+    return output
+
+def inject_and_recover_dualband(n=1000, omit_incompletes=True,
+                            stepsz=30., trange=[0, 1600], resolution=0.05,
+                            distance=2.7, # parsecs
+                            quiescent_mag=18, # approx. NUV mag
+                            mag_range=[13, 18], # approx. GALEX NUV bright limit
+                            detection_threshold=5,
+                            detection_threshold_dualband=3):
+    """
+    NOTE: deault for distance, quiescent_mag, and mag_range are for UV Ceti.
+    'detection_threshold' is specified as a sigma value
+    """
+
+    output = pd.DataFrame({'energy_true':[],
+                           'energy_measured':[],
+                           'energy_measured_err':[],
+                           'energy_measured_w_q':[],
+                           'energy_measured_w_q_err':[],
+                           'q':[], 'q_err':[],
+                           'q_true':[],
+                           'energy_true_fuv':[],
+                           'energy_measured_fuv':[],
+                           'energy_measured_err_fuv':[],
+                           'energy_measured_w_q_fuv':[],
+                           'energy_measured_w_q_err_fuv':[],
+                           'q_fuv':[], 'q_err_fuv':[],
+                           'q_true_fuv':[]})
+
+    while len(output['energy_true']) < n:
+        printed = False
+        if not len(output['energy_true']) % 10000 and not printed:
+            print('Injecting: {x}% done...'.format(
+                x=float(len(output['energy_true']))/float(n)*100.))
+            # Turn off counter in cases where the injected flare is rejected
+            # for being truncated, so you don't get the same status update
+            # printed multiple times.
+            printed = True
+
+        fpeak_mag = np.random.uniform(low=mag_range[0], high=mag_range[1])
+        # Peaks within the visit
+        tpeak = np.random.uniform(low=trange[0], high=trange[1])
+        # FWHM in seconds
+        fwidth = np.random.uniform(low=1, high=300)
+
+        model, lc = fake_a_flare(
+            band="NUV", quiescent_mag=quiescent_mag, fpeak_mag=fpeak_mag,
+            stepsz=stepsz, trange=trange, tpeak=tpeak, fwidth=fwidth,
+            resolution=resolution)
+
+        model_fuv, lc_fuv = fake_a_flare(
+            band="FUV", quiescent_mag=quiescent_mag, fpeak_mag=fpeak_mag,
+            stepsz=stepsz, trange=trange, tpeak=tpeak, fwidth=fwidth,
+            resolution=resolution)
+
+        # Calculate the "true" flare energy.
+        model_energy = calculate_ideal_flare_energy(
+            model, mag2counts(quiescent_mag, "NUV"), distance)
+        model_energy_fuv = calculate_ideal_flare_energy(
+            model, mag2counts(quiescent_mag, "FUV"), distance)
+
+        q, q_err = get_inff(lc)
+
+        q_fuv, q_err_fuv = get_inff(lc_fuv)
+
+        # This tests for single-band 5-sigma detection.
+        fr, quiescence, quiescence_err = refine_flare_ranges(
+            lc, sigma=detection_threshold, makeplot=False)
+
+        # This tests for dual-band 3-sigma detection.
+        fr_nuv, quiescence_nuv, quiescence_err_nuv = refine_flare_ranges(
+            lc, sigma=detection_threshold_dualband, makeplot=False)
+        fr_fuv, quiescence_fuv, quiescence_err_fuv = refine_flare_ranges(
+            lc_fuv, sigma=detection_threshold_dualband, makeplot=False)
+
+        if not len(fr) and (not len(fr_nuv) or not len(fr_fuv)):
+            output = output.append(pd.Series({
+                'energy_true':model_energy,
+                'energy_measured':0, #energy[0],
+                'energy_measured_err':0, #energy[1],
+                'energy_measured_w_q':0, #energy_w_q[0],
+                'energy_measured_w_q_err':0, #energy_w_q[1],
+                'q':q, 'q_err':q_err,
+                'q_true':quiescent_mag,
+                'energy_true_fuv':model_energy_fuv,
+                'energy_measured_fuv':0, #energy[0],
+                'energy_measured_err_fuv':0, #energy[1],
+                'energy_measured_w_q_fuv':0, #energy_w_q[0],
+                'energy_measured_w_q_err_fuv':0, #energy_w_q[1],
+                'q_fuv':q_fuv, 'q_err_fuv':q_err_fuv,
+                'q_true_fuv':quiescent_mag}),
+                                   ignore_index=True)
+
+        for f, ffuv in zip(fr, fr_fuv):
+            if omit_incompletes and ((f[0] == 0) or f[-1] == len(lc)-1):
+                continue
+
+            energy = calculate_flare_energy(lc, f, distance, band="NUV")
+            energy_w_q = calculate_flare_energy(lc, f, distance, band="NUV",
+                                                quiescence=[mag2counts(
+                                                    quiescent_mag, "NUV"), 0.0])
+            energy_fuv = calculate_flare_energy(lc_fuv, f_fuv, distance,
+                                                band="FUV")
+            energy_w_q_fuv = calculate_flare_energy(lc_fuv, f_fuv, distance,
+                                                    band="FUV",
+                                                quiescence=[mag2counts(
+                                                    quiescent_mag, "FUV"), 0.0])
+            output = output.append(pd.Series({
+                'energy_true':model_energy,
+                'energy_measured':energy[0],
+                'energy_measured_err':energy[1],
+                'energy_measured_w_q':energy_w_q[0],
+                'energy_measured_w_q_err':energy_w_q[1],
+                'q':q, 'q_err':q_err,
+                'q_true':quiescent_mag,
+                'energy_true_fuv':model_energy_fuv,
+                'energy_measured_fuv':energy_fuv[0],
+                'energy_measured_err_fuv':energy_fuv[1],
+                'energy_measured_w_q_fuv':energy_w_q_fuv[0],
+                'energy_measured_w_q_err_fuv':energy_w_q_fuv[1],
+                'q_fuv':q_fuv, 'q_err_fuv':q_err_fuv,
+                'q_true_fuv':quiescent_mag}),
                                    ignore_index=True)
             # Update counter again.
             printed = False

@@ -11,6 +11,8 @@ import os
 from astropy.io import fits as pyfits
 from astropy import wcs as pywcs
 from astropy.stats import sigma_clip
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
@@ -18,6 +20,7 @@ import gPhoton
 from gPhoton import galextools as gt
 from gPhoton.gphoton_utils import read_lc
 from gPhoton.MCUtils import print_inline
+from scipy.stats import anderson
 
 def listdir_contains(directory, contains_str):
     """This function returns a sorted list of files that match the given
@@ -170,10 +173,15 @@ def make_lightcurve(photon_file, band, stepsz=30., skypos=(24.76279, -17.94948),
         if not quiet:
             print_inline('Generating {fn}'.format(fn=lc_filename))
     events = calibrate_photons(photon_file, band)
+    # Below is a calculation of the re-centering, if desired.
     skypos_recentered = recenter(events, skypos=skypos)
+    c1 = SkyCoord(ra=skypos[0]*u.degree, dec=skypos[1]*u.degree)
+    c2 = SkyCoord(ra=skypos_recentered[0]*u.degree,
+                  dec=skypos_recentered[1]*u.degree)
     if not quiet:
         print('Recentering aperture on [{ra}, {dec}]'.format(
             ra=skypos_recentered[0], dec=skypos_recentered[1]))
+        print("Recenter shift (arcsec): " + str(c1.separation(c2).arcsec))
     ix = aper_photons(events, skypos=skypos_recentered, aper=aper)
     if len(ix[0]) == 0:
         return [], [], [], []
@@ -419,6 +427,18 @@ def get_inff(lc, clipsigma=3, quiet=True, band='NUV',
     if inff and not quiet:
         print('Quiescent at {m} AB mag.'.format(m=gt.counts2mag(inff, band)))
     return inff, inff_err
+
+# Alternative INFF calculation method, not used for the GJ 65 paper.
+#def get_inff(lc, clipsigma=3, use_mcmc=False, quiet=True, band='NUV',
+#             binsize=30.):
+#    if anderson(lc['cps']).statistic < max(anderson(lc['cps']).critical_values):
+#        return np.mean(lc['cps']), np.std(lc['cps'])
+#    sclip = sigma_clip(lc['cps'].values,sigma_lower=3, sigma_upper=1)
+#    quiescence = np.ma.median(sclip)
+#    quiescence_err = np.sqrt(quiescence*len(sclip)*binsize)/(len(sclip)*binsize)
+#    if quiescence and not quiet:
+#        print('Quiescent at {m} AB Mag.'.format(m=counts2mag(quiescence,band)))
+#    return quiescence, quiescence_err
 
 def calculate_flare_energy(lc, frange, distance, binsize=30, band='NUV',
                            effective_widths={'NUV':729.94, 'FUV':255.45},
