@@ -132,7 +132,8 @@ def calculate_ideal_flare_energy(model, quiescence, distance, band='NUV',
     return energy
 
 def inject_and_recover(n=1000, omit_incompletes=True,
-                       band='NUV', stepsz=30., trange=[0, 1600], resolution=0.05,
+                       band='NUV', stepsz=30., trange=[0, 1600],
+                       resolution=0.05,
                        distance=2.7, # parsecs
                        quiescent_mag=18, # approx. NUV mag
                        mag_range=[13, 18], # approx. GALEX NUV bright limit
@@ -175,9 +176,10 @@ def inject_and_recover(n=1000, omit_incompletes=True,
         model_energy = calculate_ideal_flare_energy(
             model, mag2counts(quiescent_mag, band), distance)
 
+        # Estimate the INFF.
         q, q_err = get_inff(lc)
 
-        # 'n_above_sigma' = minimum consecutive points required for detection
+        # Detect flares.
         fr, quiescence, quiescence_err = refine_flare_ranges(
             lc, sigma=detection_threshold, makeplot=False)
 
