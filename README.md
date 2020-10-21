@@ -7,7 +7,7 @@ Analysis of GJ 65 (aka "UV Ceti" and "BL Ceti") as part of the GALEX Flare Catal
 This repository contains Python notebooks and some data files needed to reproduce the data, plots, tables, and some calculations in Fleming et al. 2020 "New Time-Resolved Flares In The GJ 65 System With gPhoton".
 
 ### Notebooks
-There are six Python notebooks included in the [src/uvceti/](src/uvceti/) folder, and they are numbered based on the most natural order of running them.  The regular Python file [src/uvceti/function_defs.py](src/uvceti/function_defs.py) contains the functions used in the notebooks, and are imported at the top of each one as needed.  The other .txt files are filter transmissions from the SVO Filter Service, which are read in by the notebooks (especially the one that estimates bolometric flare flux contributions for different bands).
+There are eight Python notebooks included in the [src/uvceti/](src/uvceti/) folder, and they are numbered based on the most natural order of running them.  The regular Python files [src/uvceti/function_defs.py](src/uvceti/function_defs.py) and [src/uvceti/recovery_defs.py](src/uvceti/recovery_defs.py) contains the functions used in the notebooks, and are imported at the top of each one as needed.  The other .txt files are filter transmissions from the SVO Filter Service, which are read in by the notebooks (especially the one that estimates bolometric flare flux contributions for different bands).
 
   - [00-calculate_pbol.ipynb](src/uvceti/00-calculate_pbol.ipynb) = Estimates the bolometric contribution of GALEX and shows that other bolometric contributions for flares in the bandpasses used in the FFD comparison (Kepler, TESS, Evryscope, Johnson U band) are all within an order of magnitude of each other.
   
@@ -17,11 +17,13 @@ There are six Python notebooks included in the [src/uvceti/](src/uvceti/) folder
 
   - [03-make_flare_table_and_figs.ipynb](src/uvceti/03-make_flare_table_and_figs.ipynb) = Generates plots of the light curves and the table of flare properties.
 
-  - [04-ffd_analysis.ipynb](src/uvceti/04-ffd_analysis.ipynb) = Calculates rough estimate for a Flare Frequemcy Distribution within the energies of the flares found in our paper, and compares with FFD from other ground- and space-based surveys in the optical.
+  - [04-ffd_analysis.ipynb](src/uvceti/04-ffd_analysis.ipynb) = Calculates a rough estimate for the flare frequemcy rate within the energies of the flares found in our paper, and compares with FFD from other ground- and space-based surveys in the optical.
 
   - [05-flare8_colordiff_analysis.ipynb](src/uvceti/05-flare8_colordiff_analysis.ipynb) = Demonstrates that the count rate during the large Flare #8 exceeds the local non-linearity threshold, and thus a FUV-NUV ratio analysis of the flare is unfortunately not possible in the absence of a (nonexistent) robust correction for the flux depression caused by the local non-linearity in the GALEX detectors.
 
-  - [06-qpp_analysis.ipynb](src/uvceti/06-qpp_analysis.ipynb) = Analysis of the quasi-periodic pulsation (QPP) during Flare #8, and shows that the strong signal at ~49 seconds in both FUV and NUV bands is not related to the dither pattern, and thus is highly unlikely to be caused by any known gPhoton systematics.
+  - [06-qpp_analysis.ipynb](src/uvceti/06-qpp_analysis.ipynb) = Analysis of the quasi-periodic pulsation (QPP) during Flare #8, and shows that the strong signal at ~50 seconds in both FUV and NUV bands is not related to the dither pattern, and thus is highly unlikely to be caused by any known gPhoton systematics.  The full analysis of this QPP signal is done with an IDL package by a co-author that is made available online and is linked in the paper itself.
+
+  - [07-injection_recovery.ipynb](src/uvceti/07-injection_recovery.ipynb) = This notebook creates 100,000 simulated flares and adds them to a simulated GJ 65 gPhoton light curve.  It then runs them through our INFF determination and flare detection algorithm.  We then determine the fraction of undetected flares at various energies, and demonstrate that nearly all the simulated flares at the same energies as those found in the paper are detected.
 
 ### Light Curve Files
 Generating our data products is possible with the software in this repository, but it can take many hours and generates hundreds of GB of data.  Most users will likely want to analyze the light curve files of GJ 65 and the comparison stars themselves, thus we include them in the [src/uvceti/raw_files/](src/uvceti/raw_files/) directory for convenience.  This includes all versions of the 30-second and 5-second light curves of GJ 65 itself, as well as the 5-second light curves of the comparison stars used in the QPP notebook.
