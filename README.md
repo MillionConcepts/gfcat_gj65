@@ -4,12 +4,12 @@
 Analysis of GJ 65 (aka "UV Ceti" and "BL Ceti") as part of the GALEX Flare Catalog (GFcat) project.  Supported by NASA Grant 80NSSC18K0084.
 
 ## Contents
-This repository contains Python notebooks and some data files needed to reproduce the data, plots, tables, and some calculations in Fleming et al. 2020 "New Time-Resolved Flares In The GJ 65 System With gPhoton".
+This repository contains Python notebooks and some data files needed to reproduce the data, plots, tables, and some calculations in Fleming et al. 2020 "New Time-Resolved Flares In The GJ 65 System With gPhoton".  For those who would like to see the executed Python notebook cells without running the notebooks themselves, HTML versions of the notebooks with all cells executed are provided in the [src/uvceti/html/](src/uvceti/html/) folder, and linked below for in-browser display.
 
 ### Notebooks
 There are eight Python notebooks included in the [src/uvceti/](src/uvceti/) folder, and they are numbered based on the most natural order of running them.  The regular Python files [src/uvceti/function_defs.py](src/uvceti/function_defs.py) and [src/uvceti/recovery_defs.py](src/uvceti/recovery_defs.py) contains the functions used in the notebooks, and are imported at the top of each one as needed.  The other .txt files are filter transmissions from the SVO Filter Service, which are read in by the notebooks (especially the one that estimates bolometric flare flux contributions for different bands).
 
-  - [00-calculate_pbol.ipynb](src/uvceti/00-calculate_pbol.ipynb) = Estimates the bolometric contribution of GALEX and shows that other bolometric contributions for flares in the bandpasses used in the FFD comparison (Kepler, TESS, Evryscope, Johnson U band) are all within an order of magnitude of each other.
+  - [00-calculate_pbol.ipynb](src/uvceti/00-calculate_pbol.ipynb) ([html](http://htmlpreview.github.io/?https://github.com/MillionConcepts/gfcat_gj65/blob/master/src/uvceti/html/00-calculate_pbol.html)) = Estimates the bolometric contribution of GALEX and shows that other bolometric contributions for flares in the bandpasses used in the FFD comparison (Kepler, TESS, Evryscope, Johnson U band) are all within an order of magnitude of each other.
   
   - [01-generate_products.ipynb](src/uvceti/01-generate_products.ipynb) = This notebook is used to retrieve the raw photon event files, calibrate the photon events, and create the initial set of light curves.  WARNING: Some of these functions can take a few hours to run, and it generates several hundred GB of data if you are downloading and creating the photon event files.  For those who don't want to do this step, you can skip it and use the 30-second and 5-second light curves provided directly in the repository (see section below).
 
