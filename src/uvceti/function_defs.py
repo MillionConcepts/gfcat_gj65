@@ -317,7 +317,7 @@ def find_flare_ranges(lc, sigma=3, quiescence=None):
         ix = np.where((np.array(lc['t0'].values) >= trange[0]) &
                       (np.array(lc['t0'].values) <= trange[1]) &
                       (np.array(lc['expt'].values) >= 20.0) &
-                      (np.array(lc['cps_apcorrected'].values) -
+                      (np.array(lc['cps'].values) -
                        sigma*np.array(lc['cps_err'].values) >= q))[0]
         # Save the points that are 3-sigma above the INFF to return.
         fluxes_3sig = ix
@@ -335,9 +335,9 @@ def find_flare_ranges(lc, sigma=3, quiescence=None):
             # Going backwards.
             n_in_a_row = 0
             extra_part = lc.iloc[ix_range[0]]['cps_err']
-            while (lc.iloc[ix_range[0]]['cps_apcorrected']-extra_part >= q and ix_range[0] > 0 or (n_in_a_row < 1 and ix_range[0] > 0)):
+            while (lc.iloc[ix_range[0]]['cps']-extra_part >= q and ix_range[0] > 0 or (n_in_a_row < 1 and ix_range[0] > 0)):
                 extra_part = lc.iloc[ix_range[0]]['cps_err']
-                if (lc.iloc[ix_range[0]]['cps_apcorrected']-extra_part < q):
+                if (lc.iloc[ix_range[0]]['cps']-extra_part < q):
                     n_in_a_row += 1
                 else:
                     n_in_a_row = 0
@@ -348,9 +348,9 @@ def find_flare_ranges(lc, sigma=3, quiescence=None):
             # Going forwards.
             n_in_a_row = 0
             extra_part = lc.iloc[ix_range[-1]]['cps_err']
-            while (lc.iloc[ix_range[-1]]['cps_apcorrected']-extra_part >= q and ix_range[-1] != len(lc)-1 or (n_in_a_row < 1 and ix_range[-1] != len(lc)-1)):
+            while (lc.iloc[ix_range[-1]]['cps']-extra_part >= q and ix_range[-1] != len(lc)-1 or (n_in_a_row < 1 and ix_range[-1] != len(lc)-1)):
                 extra_part = lc.iloc[ix_range[-1]]['cps_err']
-                if (lc.iloc[ix_range[-1]]['cps_apcorrected']-extra_part < q):
+                if (lc.iloc[ix_range[-1]]['cps']-extra_part < q):
                     n_in_a_row += 1
                 else:
                     n_in_a_row = 0
@@ -371,7 +371,7 @@ def refine_flare_ranges(lc, sigma=3., makeplot=True, flare_ranges=None):
     flare_ix = list(itertools.chain.from_iterable(flare_ranges))
     quiescience_mask = [False if i in flare_ix else True for i in
                         np.arange(len(lc['t0']))]
-    quiescence = ((lc['cps_apcorrected'][quiescience_mask] *
+    quiescence = ((lc['cps'][quiescience_mask] *
                    lc['expt'][quiescience_mask]).sum() /
                   lc['expt'][quiescience_mask].sum())
     quiescence_err = (np.sqrt(lc['counts'][quiescience_mask].sum()) /
@@ -384,15 +384,15 @@ def refine_flare_ranges(lc, sigma=3., makeplot=True, flare_ranges=None):
     not_flare_ix = list(set([x for x in range(len(lc['t0']))]) - set(flare_ix))
     if makeplot:
         plt.figure(figsize=(15, 3))
-        plt.plot(lc['t0']-min(lc['t0']), lc['cps_apcorrected'], '-k')
+        plt.plot(lc['t0']-min(lc['t0']), lc['cps'], '-k')
         plt.errorbar(lc['t0'].iloc[not_flare_ix]-min(lc['t0']),
-                     lc['cps_apcorrected'].iloc[not_flare_ix],
+                     lc['cps'].iloc[not_flare_ix],
                      yerr=1.*lc['cps_err'].iloc[not_flare_ix], fmt='ko')
         plt.errorbar(lc['t0'].iloc[flare_ix]-min(lc['t0']),
-                     lc['cps_apcorrected'].iloc[flare_ix],
+                     lc['cps'].iloc[flare_ix],
                      yerr=1.*lc['cps_err'].iloc[flare_ix], fmt='rs')
         plt.plot(lc['t0'].iloc[flare_3sigs]-min(lc['t0']),
-                 lc['cps_apcorrected'].iloc[flare_3sigs],
+                 lc['cps'].iloc[flare_3sigs],
                     'ro', fillstyle='none', markersize=20)
         plt.hlines(quiescence, lc['t0'].min()-min(lc['t0']),
                    lc['t0'].max()-min(lc['t0']))
@@ -421,7 +421,7 @@ def find_ix_ranges(ix, buffer=False):
 def get_inff(lc, clipsigma=3, quiet=True, band='NUV',
              binsize=30.):
     """ Calculates the Instantaneous Non-Flare Flux values. """
-    sclip = sigma_clip(np.array(lc['cps_apcorrected']), sigma=clipsigma)
+    sclip = sigma_clip(np.array(lc['cps']), sigma=clipsigma)
     inff = np.ma.median(sclip)
     inff_err = np.sqrt(inff*len(sclip)*binsize)/(len(sclip)*binsize)
     if inff and not quiet:
@@ -446,6 +446,8 @@ def calculate_flare_energy(lc, frange, distance, binsize=30, band='NUV',
     """ Calculates the energy of a flare in erg. """
     if not quiescence:
         q, _ = get_inff(lc)
+        # Convert to aperture-corrected flux
+        q = gt.mag2counts(gt.counts2mag(q,band)-gt.apcorrect1(gt.aper2deg(6),band),band)
     else:
         q = quiescence[0]
 
