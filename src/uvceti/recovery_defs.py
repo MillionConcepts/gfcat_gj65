@@ -55,57 +55,75 @@ def aflare(t, p):
 
 def fake_a_flare(band='NUV',
                  quiescent_mag=18,
-                 fpeak_mag=17,
+                 fpeak_mags=[17], # peak flux of flares
                  stepsz=30., # integration depth in seconds
                  trange=[0, 1600], # visit length in seconds
-                 tpeak=250, # flare peak time
-                 fwidth=60, # flare "fwhm"
+                 tpeaks=[250], # peak time of flares
+                 fwidths=[60], # "fwhm" of flares
                  resolution=0.05, # normal photon time resolution
                  flat_err=0.15 # 15% error in the NUV flat field
                 ):
 
     quiescent_cps = mag2counts(quiescent_mag, band)
-    fpeak_cps = mag2counts(fpeak_mag, band)
     t = np.arange(trange[0], trange[1], resolution)
-    flare = (aflare(t, [tpeak, fwidth, max(fpeak_cps - quiescent_cps, 0)]) +
-             quiescent_cps)
-
     tbins = np.arange(trange[0], trange[1], stepsz)
-    flare_binned = []
-    for t0 in tbins:
-        ix = np.where((t >= t0) & (t < t0 + stepsz))
-        flare_binned += [np.array(flare)[ix].sum()/len(ix[0])]
+    models = []
+    
+    for ii, fpeak_mag, tpeak, fwidth in zip(range(len(fpeak_mags)), fpeak_mags,
+                                                tpeaks, fwidths):
+        fpeak_cps = mag2counts(fpeak_mag, band)
+        flare = (aflare(t, [tpeak, fwidth, max(fpeak_cps - quiescent_cps, 0)]) +
+                quiescent_cps)
 
-    flare_binned_counts = np.array(flare_binned) * stepsz
-    flare_obs = np.array([np.random.normal(loc=counts,
-                                           scale=np.sqrt(counts))/stepsz
-                          for counts in flare_binned_counts])
-    flare_obs_err = np.array(
-        [np.sqrt(counts)/stepsz for counts in flare_binned_counts])
+        flare_binned = []
+        for t0 in tbins:
+            ix = np.where((t >= t0) & (t < t0 + stepsz))
+            flare_binned += [np.array(flare)[ix].sum()/len(ix[0])]
 
-    model_dict = {'t0':t, 't1':t + resolution,
-                  'cps':flare, 'cps_err':np.zeros(len(flare)),
-                  'flux':counts2flux(flare, band),
-                  'flux_err':np.zeros(len(flare)),
-                  'flags':np.zeros(len(flare))}
+        flare_binned_counts = np.array(flare_binned) * stepsz
+        flare_obs = np.array([np.random.normal(loc=counts,
+                                            scale=np.sqrt(counts))/stepsz
+                            for counts in flare_binned_counts])
+        flare_obs_err = np.array(
+            [np.sqrt(counts)/stepsz for counts in flare_binned_counts])
 
-    # Construct a simulated lightcurve dataframe.
-    # NOTE: Since we don't need to worry about aperture corrections, we
-    # copy the cps and cps_err into those so the paper's pipeline can run on
-    # this simulated light curve too.  We assume no missing time coverage in
-    # the time bins, since those with bad coverage are avoided in our paper's
-    # pipeline anyways, and thus set the 'expt' to be the same as the requested
-    # bin size.
-    lc_dict = {'t0':tbins, 't1':tbins+stepsz,
-               'cps':flare_obs, 'cps_err':flare_obs_err,
-               'cps_apcorrected':flare_obs, 'counts':flare_binned_counts,
-               'flux':counts2flux(flare_obs, band),
-               'flux_err':counts2flux(flare_obs_err, band),
-               'expt':np.full(len(tbins), stepsz),
-               'flags':np.zeros(len(tbins))}
+        model_dict = {'t0':t, 't1':t + resolution,
+                    'cps':flare, 'cps_err':np.zeros(len(flare)),
+                    'flux':counts2flux(flare, band),
+                    'flux_err':np.zeros(len(flare)),
+                    'flags':np.zeros(len(flare))}
+        models.append(pd.DataFrame(model_dict))
+
+        # Construct a simulated lightcurve dataframe.
+        # NOTE: Since we don't need to worry about aperture corrections, we
+        # copy the cps and cps_err into those so the paper's pipeline can run on
+        # this simulated light curve too.  We assume no missing time coverage in
+        # the time bins, since those with bad coverage are avoided in our paper's
+        # pipeline anyways, and thus set the 'expt' to be the same as the
+        # requested bin size.
+        if ii == 0:
+            # First flare in visit, setup the entire light curve.
+            lc_dict = {'t0':tbins, 't1':tbins+stepsz,
+                'cps':flare_obs, 'cps_err':flare_obs_err,
+                'cps_apcorrected':flare_obs, 'counts':flare_binned_counts,
+                'flux':counts2flux(flare_obs, band),
+                'flux_err':counts2flux(flare_obs_err, band),
+                'expt':np.full(len(tbins), stepsz),
+                'flags':np.zeros(len(tbins))}
+        else:
+            # More flares in this light curve, only need to adjust the fluxes.
+            lc_dict['cps'] += flare_obs
+            lc_dict['cps_err'] = ((lc_dict['cps_err'])**2. +
+                                      (flare_obs_err)**2.)**0.5
+            lc_dict['cps_apcorrected'] += flare_obs
+            lc_dict['counts'] += flare_binned_counts
+            lc_dict['flux'] += counts2flux(flare_obs, band)
+            lc_dict['flux_err'] = ((lc_dict['flux_err'])**2. +
+                                       (counts2flux(flare_obs_err,
+                                                        band))**2.)**0.5
 
     # "TRUTH" + simulated lightcurve dataframe
-    return pd.DataFrame(model_dict), pd.DataFrame(lc_dict)
+    return models, pd.DataFrame(lc_dict)
 
 def calculate_ideal_flare_energy(model, quiescence, distance, band='NUV',
                                  effective_widths={'NUV':729.94, 'FUV':255.45},
