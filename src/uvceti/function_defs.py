@@ -394,6 +394,10 @@ def refine_flare_ranges(lc, sigma=3., makeplot=True, flare_ranges=None):
         plt.plot(lc['t0'].iloc[flare_3sigs]-min(lc['t0']),
                  lc['cps'].iloc[flare_3sigs],
                     'ro', fillstyle='none', markersize=20)
+        where_badexpt = np.where(np.array(lc['expt']) < 20.)[0]
+        plt.plot(lc['t0'].iloc[where_badexpt]-min(lc['t0']),
+                 lc['cps'].iloc[where_badexpt],
+                    'bo', fillstyle='none', markersize=20)
         plt.hlines(quiescence, lc['t0'].min()-min(lc['t0']),
                    lc['t0'].max()-min(lc['t0']))
         plt.show()

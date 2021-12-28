@@ -237,3 +237,132 @@ def inject_and_recover(n=1000, omit_incompletes=True,
             # Update counter again.
             printed = False
     return output
+
+def within_factor(x, y, fact):
+    # Returns True if x and y are within a factor of 'fact' from each other.
+    if x >= y:
+        return x / y <= fact
+    else:
+        return y / x <= fact
+
+def run_full_inj(n_flares_to_make, rng, band, binsize, max_flares_pervisit, trange, resolution, detection_threshold, quiescent_mag, distance):
+    """
+    Main program, does a complete run, without plotting samples, to gather injection and recovery statistics.
+    """
+    # For each light curve, keep track of the number of flares detected, missed, and false positives.
+    all_n_det = np.asarray([0] * n_flares_to_make)
+    all_n_det_wrongenergy = np.asarray([0] * n_flares_to_make)
+    all_n_miss = np.asarray([0] * n_flares_to_make)
+    all_n_fp = np.asarray([0] * n_flares_to_make)
+    all_n_in_visit = np.asarray([0] * n_flares_to_make)
+    # Keep a list of all injected flare energies and all detected flare engeries to make histograms later.
+    # We store them as log10() energies.
+    all_injected_flare_energies_n1 = []
+    all_injected_flare_energies_n2 = []
+    all_injected_flare_energies_n3 = []
+    all_detected_flare_energies_n1 = []
+    all_detected_flare_energies_n2 = []
+    all_detected_flare_energies_n3 = []
+    # If a detected flare is within "energy_match_factor" count it as detected, otherwise detected_wrongenergy.
+    energy_match_factor = 5.
+
+    for i in range(n_flares_to_make):
+        # Generate flares with random properties within plausible ranges.
+        # Randomly determine how many flares to inject into the Visit, between 1 and 'max_flares_pervisit'.
+        n_in_visit = rng.choice(np.asarray(range(max_flares_pervisit))+1)
+        all_n_in_visit[i] = n_in_visit
+        # First: select a peak NUV magnitude from within a specified range.
+        fpeak_mags = rng.uniform(low=13, high=18, size=n_in_visit)
+        # Have the flare start at some random time during the visit (avoid edges since we don't count truncated flares in
+        # the paper analysis either.
+        tpeaks = rng.uniform(low=trange[0]+200, high=trange[1]-200, size=n_in_visit)
+        # This will record whether a given flare is "detected".
+        tpeaks_detected = np.asarray([0] * len(tpeaks))
+        # This will record whether a given flare is "detected" but with the wrong energy.
+        tpeaks_detected_wrongenergy = np.asarray([0] * len(tpeaks))
+        # Now assign the flare a random full width at half maximum (FWHM).
+        fwidths = rng.uniform(low=1, high=300, size=n_in_visit)
+    
+        # Generate the model flare.
+        models, lc = fake_a_flare(band=band, quiescent_mag=quiescent_mag, fpeak_mags=fpeak_mags,
+            stepsz=binsize, trange=trange, tpeaks=tpeaks, fwidths=fwidths, resolution=resolution)
+
+        # Calculate the energies of the synthetic flares.
+        model_energies = np.asarray([0.] * len(models))
+        for mm, model in enumerate(models):
+            this_model_energy = calculate_ideal_flare_energy(model, mag2counts(quiescent_mag, band), distance)
+            model_energies[mm] = this_model_energy
+            if n_in_visit == 1:
+                all_injected_flare_energies_n1.append(np.log10(this_model_energy))
+            elif n_in_visit == 2:
+                all_injected_flare_energies_n2.append(np.log10(this_model_energy))
+            elif n_in_visit == 3:
+                all_injected_flare_energies_n3.append(np.log10(this_model_energy))
+            else:
+                raise ValueError("Number of flares not 1, 2, or 3...")
+    
+        # Determine the INFF based on the light curve generated.
+        q, q_err = get_inff(lc)
+    
+        # Locate the flare range following the algorithm described in our paper.
+        fr, quiescence, quiescence_err = refine_flare_ranges(lc, sigma=detection_threshold, makeplot=False)
+    
+        # Keep track of number of false positive flares detected.
+        n_fp = 0
+        for ff,f in zip(range(len(fr)), fr):
+            energy, _ = calculate_flare_energy(lc, f, distance, band=band)
+            # Note: no "uncertainty" needed in our quiescence measurement, so that's why the argument has "0.0" since
+            # the function expects this to be passed as a two-element list containing q and q_err.
+            energy_w_q, _ = calculate_flare_energy(lc, f, distance, band=band,
+                            quiescence=[mag2counts(quiescent_mag, band), 0.0])
+            if n_in_visit == 1:
+                all_detected_flare_energies_n1.append(np.log10(energy_w_q))
+            elif n_in_visit == 2:
+                all_detected_flare_energies_n2.append(np.log10(energy_w_q))
+            elif n_in_visit == 3:
+                all_detected_flare_energies_n3.append(np.log10(energy_w_q))
+            else:
+                raise ValueError("Number of flares not 1, 2, or 3...")
+
+            # Locate start and stop of each detected flare range.
+            fstart = lc.iloc[np.unique(f)]['t0'].iloc[0]
+            fend = lc.iloc[np.unique(f)]['t0'].iloc[-1]
+            # Locate the peak within each flare detected range.
+            maxind = lc.iloc[np.unique(f)]['cps'].idxmax()
+            fmax = lc.iloc[maxind]['t0']+binsize/2.
+            # Is this detected flare peak within +/- 2 time bins from a known flare peak?
+            where_close = np.where(abs(fmax-tpeaks) <= 2*binsize)[0]
+            if len(where_close) == 1:
+                # Simple match.
+                # If energy is within a factor of "energy_match_factor" count as detection.
+                if within_factor(energy_w_q, model_energies[where_close[0]], energy_match_factor):
+                    tpeaks_detected[where_close[0]] += 1
+                else:
+                    # Otherwise count as "wrongenergy".
+                    tpeaks_detected_wrongenergy[where_close[0]] += 1
+            elif len(where_close) > 1:
+                # Choose the flare with the biggest energy (lowest mag) as the one detected.
+                index_to_use = where_close[np.argmin(fpeak_mags[where_close])]
+                # If energy is within a factor of "energy_match_factor" count as detection.
+                if within_factor(energy_w_q, model_energies[index_to_use], energy_match_factor):
+                    tpeaks_detected[index_to_use] += 1
+                else:
+                    # Otherwise count as "wrongenergy".
+                    tpeaks_detected_wrongenergy[index_to_use] += 1
+            else:
+                # Found a flare that isn't a real one.
+                n_fp += 1
+        # Make sure none of the injected flares was detected more than once.
+        if len(np.where(tpeaks_detected > 1)[0]):
+            import pdb; pdb.set_trace()
+            raise ValueError("One of the injected flares was counted more than once as being detected.")
+        # Count how many injected flares were found or missed.
+        n_miss = len(np.where((tpeaks_detected == 0) & (tpeaks_detected_wrongenergy == 0))[0])
+        n_det = len(np.where(tpeaks_detected == 1)[0])
+        n_det_wrongenergy = len(np.where(tpeaks_detected_wrongenergy == 1)[0])
+        # Update the arrays storing the results.
+        all_n_det[i] = n_det
+        all_n_det_wrongenergy[i] = n_det_wrongenergy
+        all_n_miss[i] = n_miss
+        all_n_fp[i] = n_fp
+    return (all_n_in_visit, all_n_det, all_n_det_wrongenergy, all_n_miss, all_n_fp, all_injected_flare_energies_n1, all_injected_flare_energies_n2, all_injected_flare_energies_n3, all_detected_flare_energies_n1, all_detected_flare_energies_n2, all_detected_flare_energies_n3)
